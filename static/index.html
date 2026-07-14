@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Sales Dashboard Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#EEF0EE;
+    --paper-line:#D7DBD6;
+    --card:#FFFFFF;
+    --ink:#1C2530;
+    --ink-soft:#5B6672;
+    --copper:#C1682F;
+    --teal:#2F6F63;
+    --pos:#3F8F5F;
+    --neg:#B5432F;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px);
+    background-size: 100% 42px;
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+  }
+  header{
+    padding:36px 6vw 18px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom:1px solid var(--paper-line);
+  }
+  header h1{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:28px;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  header h1 span{ color:var(--copper); }
+  header .tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    letter-spacing:0.04em;
+  }
+  main{ padding: 6vw; padding-top: 40px; max-width:1180px; margin:0 auto; }
+
+  /* ---- Upload / ledger-slip screen ---- */
+  #upload-screen{
+    max-width:640px;
+    margin: 4vh auto;
+    text-align:center;
+  }
+  #upload-screen h2{
+    font-family:'Fraunces', serif;
+    font-size:34px;
+    font-weight:600;
+    margin-bottom:8px;
+  }
+  #upload-screen p.sub{
+    color:var(--ink-soft);
+    margin-bottom:36px;
+    font-size:15px;
+  }
+  .slip{
+    background:var(--card);
+    border:1.5px dashed #B9C0BB;
+    border-radius:var(--radius);
+    padding:48px 32px;
+    position:relative;
+    cursor:pointer;
+    transition: border-color .15s ease, transform .1s ease;
+  }
+  .slip:hover{ border-color:var(--copper); }
+  .slip.drag{ border-color:var(--copper); transform:scale(1.01); }
+  .slip::before, .slip::after{
+    content:"";
+    position:absolute;
+    left:24px; right:24px;
+    height:1px;
+    background: repeating-linear-gradient(90deg, #C7CDC7 0 6px, transparent 6px 12px);
+  }
+  .slip::before{ top:14px; }
+  .slip::after{ bottom:14px; }
+  .slip .icon{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--teal);
+    letter-spacing:0.08em;
+    margin-bottom:14px;
+    display:block;
+  }
+  .slip h3{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0 0 6px;
+  }
+  .slip p{ color:var(--ink-soft); font-size:14px; margin:0; }
+  #file-input{ display:none; }
+
+  .stamp-btn{
+    margin-top:28px;
+    background:var(--ink);
+    color:#fff;
+    border:none;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    letter-spacing:0.08em;
+    padding:14px 28px;
+    border-radius:6px;
+    cursor:pointer;
+    text-transform:uppercase;
+  }
+  .stamp-btn:hover{ background:var(--copper); }
+  .stamp-btn:disabled{ background:#B9BFC0; cursor:default; }
+
+  #status-line{
+    margin-top:18px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    min-height:18px;
+  }
+  #status-line.error{ color:var(--neg); }
+
+  /* ---- Dashboard screen ---- */
+  #dashboard-screen{ display:none; }
+  .dash-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .dash-head h2{
+    font-family:'Fraunces', serif;
+    font-size:26px;
+    margin:0;
+  }
+  .dash-head .meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .reset-btn{
+    background:none;
+    border:1px solid var(--paper-line);
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .reset-btn:hover{ border-color:var(--copper); color:var(--copper); }
+
+  .kpi-row{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+    gap:14px;
+    margin-bottom:32px;
+  }
+  .kpi-card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:20px 20px 18px;
+    border-left:3px solid var(--copper);
+  }
+  .kpi-card .label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+  }
+  .kpi-card .value{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:26px;
+    font-weight:600;
+  }
+
+  .charts-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap:18px;
+  }
+  .chart-card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:22px;
+  }
+  .chart-card h4{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:16px;
+    margin:0 0 14px;
+  }
+  .chart-card .canvas-wrap{ height:260px; position:relative; }
+
+  .columns-note{
+    margin-top:30px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    border-top:1px solid var(--paper-line);
+    padding-top:16px;
+  }
+  .columns-note b{ color:var(--ink); }
+
+  footer{
+    text-align:center;
+    padding:30px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ledger<span>.</span></h1>
+  <div class="tag">SALES / CRM AUTO-DASHBOARD</div>
+</header>
+
+<main>
+
+  <section id="upload-screen">
+    <h2>Drop in your data file.</h2>
+    <p class="sub">Excel (.xlsx) with the columns you want dashboarded highlighted in yellow. We'll read only those columns and lay out the dashboard for you.</p>
+
+    <div class="slip" id="drop-zone">
+      <span class="icon">FILE ▸ UPLOAD</span>
+      <h3 id="slip-title">Drag a file here, or click to browse</h3>
+      <p id="slip-sub">.xlsx — with yellow-highlighted header cells</p>
+      <input type="file" id="file-input" accept=".xlsx,.xlsm">
+    </div>
+
+    <button class="stamp-btn" id="analyze-btn" disabled>Analyze File</button>
+    <div id="status-line"></div>
+  </section>
+
+  <section id="dashboard-screen">
+    <div class="dash-head">
+      <div>
+        <h2>Your Dashboard</h2>
+        <div class="meta" id="dash-meta"></div>
+      </div>
+      <button class="reset-btn" id="reset-btn">Upload another file</button>
+    </div>
+
+    <div class="kpi-row" id="kpi-row"></div>
+    <div class="charts-grid" id="charts-grid"></div>
+    <div class="columns-note" id="columns-note"></div>
+  </section>
+
+</main>
+
+<footer>Prototype — runs entirely on your machine.</footer>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const analyzeBtn = document.getElementById('analyze-btn');
+const statusLine = document.getElementById('status-line');
+const slipTitle = document.getElementById('slip-title');
+const slipSub = document.getElementById('slip-sub');
+let selectedFile = null;
+
+dropZone.addEventListener('click', () => fileInput.click());
+['dragover','dragenter'].forEach(evt => dropZone.addEventListener(evt, e => {
+  e.preventDefault(); dropZone.classList.add('drag');
+}));
+['dragleave','drop'].forEach(evt => dropZone.addEventListener(evt, e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+}));
+dropZone.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) setFile(e.target.files[0]);
+});
+
+function setFile(file){
+  selectedFile = file;
+  slipTitle.textContent = file.name;
+  slipSub.textContent = `${(file.size/1024).toFixed(1)} KB — ready to analyze`;
+  analyzeBtn.disabled = false;
+  statusLine.textContent = '';
+  statusLine.classList.remove('error');
+}
+
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  analyzeBtn.disabled = true;
+  statusLine.classList.remove('error');
+  statusLine.textContent = 'Reading file and building dashboard…';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try{
+    const res = await fetch('/api/analyze', { method:'POST', body: formData });
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.detail || 'Something went wrong.'); }
+    renderDashboard(data, selectedFile.name);
+  }catch(err){
+    statusLine.textContent = 'Error: ' + err.message;
+    statusLine.classList.add('error');
+    analyzeBtn.disabled = false;
+  }
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  document.getElementById('dashboard-screen').style.display = 'none';
+  document.getElementById('upload-screen').style.display = 'block';
+  selectedFile = null;
+  fileInput.value = '';
+  slipTitle.textContent = 'Drag a file here, or click to browse';
+  slipSub.textContent = '.csv, .xlsx — exported from your CRM or spreadsheet';
+  analyzeBtn.disabled = true;
+  statusLine.textContent = '';
+});
+
+function formatKpi(value){
+  const n = Number(value);
+  if (Number.isInteger(n)) return n.toLocaleString();
+  return n.toLocaleString(undefined, {maximumFractionDigits: 2});
+}
+
+const palette = ['#C1682F','#2F6F63','#3F8F5F','#8A6FB0','#4A7FB5','#B5432F','#C9A227','#5B6672'];
+let chartInstances = [];
+
+function renderDashboard(data, filename){
+  document.getElementById('upload-screen').style.display = 'none';
+  const dash = document.getElementById('dashboard-screen');
+  dash.style.display = 'block';
+
+  document.getElementById('dash-meta').textContent =
+    `${filename} · ${data.row_count.toLocaleString()} rows`;
+
+  // KPIs
+  const kpiRow = document.getElementById('kpi-row');
+  kpiRow.innerHTML = '';
+  Object.entries(data.kpis).forEach(([label, value]) => {
+    const card = document.createElement('div');
+    card.className = 'kpi-card';
+    card.innerHTML = `<div class="label">${label}</div><div class="value">${formatKpi(value)}</div>`;
+    kpiRow.appendChild(card);
+  });
+
+  // Charts
+  chartInstances.forEach(c => c.destroy());
+  chartInstances = [];
+  const grid = document.getElementById('charts-grid');
+  grid.innerHTML = '';
+
+  data.charts.forEach((chart, idx) => {
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    card.innerHTML = `<h4>${chart.title}</h4><div class="canvas-wrap"><canvas id="chart-${idx}"></canvas></div>`;
+    grid.appendChild(card);
+
+    const ctx = document.getElementById(`chart-${idx}`).getContext('2d');
+    const labels = chart.labels;
+    let type = chart.type === 'donut' ? 'doughnut' : chart.type;
+
+    let datasets;
+    if (type === 'doughnut') {
+      datasets = [{
+        label: chart.series[0].name,
+        data: chart.series[0].values,
+        backgroundColor: palette,
+        borderColor: '#fff',
+        borderWidth: 2,
+      }];
+    } else {
+      datasets = chart.series.map((s, i) => ({
+        label: s.name,
+        data: s.values,
+        backgroundColor: type === 'line' ? 'transparent' : palette[i % palette.length],
+        borderColor: palette[i % palette.length],
+        borderWidth: type === 'line' ? 2 : 0,
+        fill: false,
+        tension: 0.3,
+        borderRadius: type === 'bar' ? 4 : 0,
+      }));
+    }
+
+    const cfg = {
+      type: type,
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: type === 'doughnut' || datasets.length > 1, labels: { font: { family: 'Inter', size: 11 } } }
+        },
+        scales: type === 'doughnut' ? {} : {
+          x: { ticks: { font: { family: 'IBM Plex Mono', size: 10 } }, grid: { display:false } },
+          y: { ticks: { font: { family: 'IBM Plex Mono', size: 10 } }, grid: { color:'#EEF0EE' } }
+        }
+      }
+    };
+    chartInstances.push(new Chart(ctx, cfg));
+  });
+
+  // Detected columns note
+  const note = document.getElementById('columns-note');
+  const roles = data.column_roles || {};
+  const parts = [];
+  if (roles.date && roles.date.length) parts.push(`<b>Date</b>: ${roles.date.join(', ')}`);
+  if (roles.measures && roles.measures.length) parts.push(`<b>Measures</b>: ${roles.measures.join(', ')}`);
+  if (roles.dimensions && roles.dimensions.length) parts.push(`<b>Dimensions</b>: ${roles.dimensions.join(', ')}`);
+  note.innerHTML = parts.length
+    ? `Built from highlighted columns — ${parts.join(' &nbsp;·&nbsp; ')}`
+    : 'Built from the highlighted columns in your file.';
+}
+</script>
+
+</body>
+</html>
